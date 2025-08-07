@@ -1,0 +1,42 @@
+# PICO-8 project files
+*.p8.png
+*.gif
+
+# PICO-8 binary (not redistributable)
+pico8
+pico8.exe
+pico8.dat
+
+# Development files
+.vscode/settings.json
+.vscode/launch.json
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Node modules if using web tools
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.idea/
+*.swp
+*.swo
