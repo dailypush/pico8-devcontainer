@@ -5,6 +5,15 @@
 
 set -e
 
+# Function to start virtual display if needed
+start_display() {
+    if ! pgrep -x "Xvfb" > /dev/null; then
+        echo "🖥️  Starting virtual display..."
+        Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset >/dev/null 2>&1 &
+        sleep 2
+    fi
+}
+
 echo "🎮 PICO-8 Minimal Container Setup"
 echo "================================="
 
@@ -29,11 +38,29 @@ echo "📁 Structure: carts/ exports/ screenshots/"
 
 # Start virtual display if needed
 if [ -z "$DISPLAY" ]; then
-    echo "🖥️  Starting virtual display..."
     export DISPLAY=:99
-    Xvfb :99 -screen 0 1024x768x16 >/dev/null 2>&1 &
-    sleep 1
+fi
+
+start_display
+
+if pgrep -x "Xvfb" > /dev/null; then
+    echo "✅ Virtual display running"
+else
+    echo "⚠️  Virtual display failed to start"
 fi
 
 echo ""
-echo "🚀 Ready! Run 'pico8' to start"
+echo "🚀 Setup complete!"
+echo ""
+echo "Usage:"
+echo "  ./scripts/setup.sh        - Set up environment only"
+echo "  ./scripts/setup.sh start  - Set up and launch PICO-8"
+echo "  pico8                     - Launch PICO-8 directly"
+
+# If 'start' argument is provided, launch PICO-8
+if [ "$1" = "start" ]; then
+    echo ""
+    echo "🎮 Starting PICO-8..."
+    cd /home/vscode/pico8
+    SDL_AUDIODRIVER=dummy /opt/pico8/pico8 "${@:2}"
+fi
