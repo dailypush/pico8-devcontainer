@@ -18,7 +18,7 @@ if [ ! -f "/opt/pico8/pico8" ]; then
     echo ""
 else
     echo "✅ PICO-8 binary found!"
-    chmod +x /opt/pico8/pico8
+    chmod +x /opt/pico8/pico8 2>/dev/null || sudo chmod +x /opt/pico8/pico8 2>/dev/null || echo "⚠️  Could not set execute permissions (binary may still work)"
 fi
 
 # Ensure directory structure exists
