@@ -7,6 +7,14 @@ pico8
 pico8.exe
 pico8.dat
 
+# PICO-8 exports and generated files
+exports/
+screenshots/
+*.html
+*.js
+test_*.p8
+demo_*.p8
+
 # Development files
 .vscode/settings.json
 .vscode/launch.json
