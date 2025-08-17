@@ -5,7 +5,7 @@ __lua__
 -- pico-8 fishing (polished pass)
 -- cart: simple_fishing.p8
 -- by chatgpt + chad
--- controls: arrows aim, ❎ cast, 🅾️ set hook / reel
+-- controls: arrows aim, z cast, x set hook / reel
 
 -- constants
 water_y=80           -- water surface y
@@ -36,6 +36,65 @@ f=nil -- active hooked fish
 -- particles (splashes, bubbles)
 parts={}
 
+-- ambient background fish (non-hooked, decorative)
+bgfish={}
+function spawn_bgfish()
+ -- spawn at left or right edge
+ local dir=choose({-1,1})
+ local x = dir==1 and -8 or 136
+ local y = water_y + 6 + flr(rnd(30))
+ local speed = 0.3 + rnd(0.6)
+ add(bgfish,{x=x,y=y,dir=dir,speed=speed,age=60+flr(rnd(180))})
+end
+
+function update_bgfish()
+ -- occasionally spawn
+ if rnd(1)<0.02 and #bgfish<6 then spawn_bgfish() end
+ for i=#bgfish,1,-1 do
+  local b=bgfish[i]
+  b.x+=b.speed*b.dir
+  b.age-=1
+  if b.age<=0 or b.x<-16 or b.x>144 then del(bgfish,b) end
+ end
+end
+
+function draw_bgfish()
+ for b in all(bgfish) do
+  -- small visible fish under surface: bright color for contrast
+  pset(b.x,b.y,8)
+  pset(b.x-1,b.y,6)
+  -- tail
+  line(b.x-2,b.y,b.x-4,b.y-1,6)
+  line(b.x-2,b.y,b.x-4,b.y+1,6)
+ end
+end
+
+-- surface waves as small drifting foam puffs
+waves={}
+function spawn_wave(x)
+ add(waves,{x=x or flr(rnd(128)),y=water_y-1,r=1,vr=0.15,alpha=1,t=18,vx=(rnd(0.6)-0.3)})
+end
+
+function update_waves()
+ -- spawn occasional waves along surface
+ if rnd(1)<0.08 then spawn_wave() end
+ for i=#waves,1,-1 do
+  local w=waves[i]
+  w.x+=w.vx
+  w.r+=w.vr
+  w.t-=1
+  if w.t<=0 then del(waves,w) end
+ end
+end
+
+function draw_waves()
+ for w in all(waves) do
+  -- draw as expanding faint rings/pset
+  circ(w.x,w.y,w.r,12)
+  pset(w.x,w.y,11)
+ end
+end
+
 function _init()
 end
 
@@ -63,30 +122,53 @@ end
 
 -- particles
 function add_splash(x,y,n)
- for i=1,(n or 8) do
+ y=water_y-2
+ local count=n or 8
+ for i=1,count do
   local a=rnd(1)
-  local sp=0.5+rnd(1)
+  local sp=0.8+rnd(1.2)
   local vx=cos(a)*sp
-  local vy=sin(a)*sp-0.2
-  add(parts,{x=x,y=y,vx=vx,vy=vy,t=30,c=12})
+  local vy=sin(a)*sp-0.6
+  add(parts,{k="drop",x=x,y=y,vx=vx,vy=vy,t=20+flr(rnd(20)),c=12})
  end
- -- rings
- add(parts,{x=x,y=y,vx=0,vy=0,t=18,ring=true,c=12,r=1})
+ -- surface ring
+ add(parts,{k="ring",x=x,y=y,r=1,vr=0.6,t=18,c=12})
+ -- bubbles under surface
+ for i=1,flr(count/3) do
+  add(parts,{k="bubble",x=x+rnd(4)-2,y=water_y+1+rnd(3),vx=rnd(0.2)-0.1,vy=-0.2-rnd(0.3),t=20+flr(rnd(20)),c=7})
+ end
 end
 
 function update_parts()
  for i=#parts,1,-1 do
   local p=parts[i]
-  if p.ring then
-   p.r+=0.6
-   p.t-=1
-   if p.t<=0 then del(parts,p) end
-  else
+  p.t-=1
+  if p.k=="drop" then
+   p.vx*=0.98
+   p.vy+=0.12
    p.x+=p.vx
    p.y+=p.vy
-   p.vy+=0.03
-   p.t-=1
-   if p.y>water_y then p.vy*=-0.3 end
+   if p.y>=water_y-1 or p.t<=0 then
+    add(parts,{k="ring",x=p.x,y=water_y-2,r=1,vr=0.5+rnd(0.3),t=12,c=12})
+    if rnd(1)<0.6 then add(parts,{k="bubble",x=p.x,y=water_y+1,vx=rnd(0.2)-0.1,vy=-0.25-rnd(0.25),t=20+flr(rnd(20)),c=7}) end
+    del(parts,p)
+   end
+  elseif p.k=="bubble" then
+   p.x+=p.vx + sin(time()*3+p.x*0.2)*0.1
+   p.y+=p.vy
+   if p.y<=water_y-2 or p.t<=0 then
+    add(parts,{k="ring",x=p.x,y=water_y-2,r=1,vr=0.3,t=10,c=7})
+    del(parts,p)
+   end
+  elseif p.k=="ring" then
+   p.r+=p.vr or 0.4
+   if p.t<=0 then del(parts,p) end
+  elseif p.k=="spark" then
+   p.x+=p.vx
+   p.y+=p.vy
+   p.vy-=0.02
+   if p.t<=0 then del(parts,p) end
+  else
    if p.t<=0 then del(parts,p) end
   end
  end
@@ -94,10 +176,14 @@ end
 
 function draw_parts()
  for p in all(parts) do
-  if p.ring then
-   circ(p.x,p.y,p.r,p.c)
-  else
-   pset(p.x,p.y,p.c)
+  if p.k=="ring" then
+   circ(p.x,p.y,p.r,p.c or 7)
+  elseif p.k=="bubble" then
+   pset(p.x,p.y,p.c or 7)
+  elseif p.k=="drop" then
+   pset(p.x,p.y,p.c or 12)
+  elseif p.k=="spark" then
+   pset(p.x,p.y,p.c or 10)
   end
  end
 end
@@ -170,24 +256,21 @@ function draw_background()
  rectfill(0,shore_y,127,water_y-1,11)
  -- water
  rectfill(0,water_y,127,127,1)
- -- animated waves
- for x=0,127,6 do
-  local y=water_y-1+sin((x+time()*20)/40)
-  line(x,y,x+3,y,12)
- end
+ -- particle-like waves
+ draw_waves()
 end
 
 function draw_hud()
  print("score:"..score,1,1,7)
  print("fish:"..fish_caught,1,7,7)
- if best_w > 0 then
+ if best_w>0 then
   print("best:"..best_name.."("..fmt_w(best_w)..")",44,1,6)
  else
   print("best: none",44,1,6)
  end
  if state=="idle" or state=="aim" then
-  print("arrows aim  ❎ cast",26,1,6)
-  print("tap 🅾️ to set hook",26,7,6)
+  print("arrows: aim",26,1,6)
+  print("z: cast   x: hook/reel",26,7,6)
  end
 end
 
@@ -197,20 +280,22 @@ function draw_player()
  circfill(p.x,p.y-6,2,7) -- head
  -- rod
  line(p.x+3,p.y-6,p.x+10,p.y-14,5)
- -- aim arc / preview dotted trajectory
+ -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
   local ang=lerp(-0.8,0.1,p.aim)
   local vx=cos(ang)*cast_power_max*0.1
   local vy=sin(ang)*cast_power_max*0.1
   local tx=p.x
   local ty=p.y-4
-  for i=1,18 do
+  for i=1,22 do
    if ty>=water_y-2 then break end
    pset(tx,ty,8)
    tx+=vx
    ty+=vy
    vy+=0.3
   end
+  local lx=clamp(tx,2,125)
+  circ(lx,water_y-2,3,10)
  end
 end
 
@@ -232,13 +317,14 @@ end
 
 function draw_fish()
  if f then
-  -- simple fish using triangles/circles if no sprite
-  circfill(f.x,f.y,3,3)
-  -- tail (replace undefined tri() with lines)
-  line(f.x-5,f.y,f.x-9,f.y-3,3)
-  line(f.x-5,f.y,f.x-9,f.y+3,3)
-  line(f.x-9,f.y-3,f.x-9,f.y+3,3)
+  -- hooked fish: make it bright so it's visible against water
+  circfill(f.x,f.y,3,8)
+  -- tail
+  line(f.x-4,f.y,f.x-8,f.y-2,9)
+  line(f.x-4,f.y,f.x-8,f.y+2,9)
  end
+ -- draw ambient bg fish on top of water
+ draw_bgfish()
 end
 
 function draw_meter()
@@ -268,6 +354,12 @@ end
 -- update -------------------------------------------------------
 function _update60()
  update_parts()
+ update_bgfish()
+ update_waves()
+ -- debug: show button presses for troubleshooting input mapping
+ if btnp(4) then add_floating_text("z pressed",p.x,p.y-14,8) end
+ if btnp(5) then add_floating_text("x pressed",p.x+12,p.y-14,9) end
+
  if state=="title" then
   if btnp(4) or btnp(5) then state="idle" reset_bobber() end
   return
@@ -305,7 +397,7 @@ function _update60()
    b.bite_window=18 -- ~0.3s
   end
   -- set hook early does nothing
-  if btnp(5) then add_floating_text("too soon!",b.x,b.y,8) end
+  if btnp(4) or btnp(5) then add_floating_text("too soon!",b.x,b.y,8) end
   return
  end
  
@@ -313,7 +405,8 @@ function _update60()
   -- quick dunk
   b.y=water_y+1
   b.bite_window-=1
-  if btnp(5) then hook_fish() return end
+  -- allow either button to set the hook
+  if btnp(4) or btnp(5) then hook_fish() return end
   if b.bite_window<=0 then
    lose_fish("missed!")
   end
@@ -330,9 +423,13 @@ function _update60()
   -- bobber follows fish with slack
   b.x=lerp(b.x,f.x,0.15)
   b.y=lerp(b.y,f.y-4,0.15)
+  -- rare fish sparkle
+  if f.rarity=="rare" and rnd(1)<0.3 then
+   add(parts,{k="spark",x=f.x,y=f.y,vx=rnd(0.3)-0.15,vy=-0.1-rnd(0.1),t=12,c=10})
+  end
   
-  -- player reeling
-  if btn(5) then
+  -- player reeling (accept either button as reel)
+  if btn(5) or btn(4) then
    -- reduce stamina; increase tension
    f.stamina=max(0,f.stamina-reel_gain)
    f.tension=min(line_max, f.tension+1.5)
@@ -386,8 +483,8 @@ function _draw()
   rectfill(12,40,115,88,1)
   rect(12,40,115,88,7)
   print("tiny fishing!",38,48,7)
-  print("arrows aim  ❎ cast",26,62,6)
-  print("🅾️ set hook / reel",32,70,6)
+  print("arrows aim  z cast",26,62,6)
+  print("x set hook / reel",32,70,6)
   print("press any key",40,82,7)
  end
 end
