@@ -25,7 +25,7 @@ best_w=0
 best_name="-"
 
 -- player
-p={x=20,y=shore_y-8,aim=0.5,casting=false,cx=0,cy=0,vt=0,power=0}
+p={x=28,y=shore_y-14,aim=0.5,casting=false,cx=0,cy=0,vt=0,power=0}
 
 -- bobber
 b={x=0,y=0,vy=0,in_water=false,waiting_t=0,bite_t=0,biting=false}
@@ -293,8 +293,8 @@ fire_parts={}
 function update_fire()
  -- spawn new fire particles
  if rnd(1)<0.4 then
-  local fx=115+rnd(6)-3
-  local fy=shore_y-4
+  local fx=105+rnd(4)-2
+  local fy=shore_y-10
   add(fire_parts,{
    x=fx,
    y=fy,
@@ -319,45 +319,116 @@ function update_fire()
 end
 
 function draw_fire()
- -- campfire base (logs)
- local fx=115
- local fy=shore_y-2
- -- logs
- line(fx-4,fy,fx+4,fy,4)
- line(fx-3,fy+1,fx+3,fy+1,4)
- line(fx-5,fy+1,fx-2,fy-1,4)
- line(fx+2,fy-1,fx+5,fy+1,4)
+ -- campfire base (logs) - isometric style
+ local fx=105
+ local fy=shore_y-8
  
- -- fire glow (circle behind flames)
- circfill(fx,fy-4,6,2)
+ -- stone ring (isometric oval)
+ for i=0,6 do
+  local ox=cos(i/7)*5
+  local oy=sin(i/7)*2
+  pset(fx+ox,fy+oy+2,5)
+ end
+ 
+ -- logs (crossed, 3D)
+ line(fx-3,fy+1,fx+3,fy+1,4)
+ line(fx-2,fy,fx+2,fy+2,9)
+ 
+ -- fire glow (warm orange)
+ circfill(fx,fy-2,5,9)
+ circfill(fx,fy-3,3,10)
  
  -- fire particles
  for p in all(fire_parts) do
   pset(p.x,p.y,p.c)
  end
- 
- -- occasional sparks going higher
- if rnd(1)<0.1 then
-  pset(fx+rnd(8)-4,fy-10-rnd(6),9)
- end
 end
 
 function draw_background()
- -- grass/ground (top-down perspective)
- rectfill(0,0,127,shore_y,3)
- -- cliff face
- rectfill(0,shore_y,127,water_y,4)
- -- water
- rectfill(0,water_y,127,127,1)
- -- cliff edge highlight
- line(0,shore_y,127,shore_y,11)
- -- water edge foam
- line(0,water_y,127,water_y,7)
+ -- sky gradient
+ for y=0,50 do
+  local c=12
+  if y<15 then c=12 end
+  if y>=15 and y<30 then c=6 end
+  if y>=30 then c=7 end
+  line(0,y,127,y,c)
+ end
  
- -- campfire in far right background
+ -- distant mountains (pointing UP)
+ -- mountain 1
+ local m1x=20
+ for dy=0,20 do
+  local w=dy -- wider at bottom
+  line(m1x-w,50-dy,m1x+w,50-dy,5) -- grey mountain
+ end
+ pset(m1x,29,7) -- snow cap
+ pset(m1x-1,30,7)
+ pset(m1x+1,30,7)
+ 
+ -- mountain 2 (taller)
+ local m2x=60
+ for dy=0,28 do
+  local w=dy*0.8
+  line(m2x-w,50-dy,m2x+w,50-dy,5)
+ end
+ -- snow cap
+ for sy=0,5 do
+  line(m2x-sy,22+sy,m2x+sy,22+sy,7)
+ end
+ 
+ -- mountain 3
+ local m3x=100
+ for dy=0,18 do
+  local w=dy
+  line(m3x-w,50-dy,m3x+w,50-dy,5)
+ end
+ pset(m3x,31,7)
+ pset(m3x-1,32,7)
+ pset(m3x+1,32,7)
+ 
+ -- grass ground plane
+ rectfill(0,50,127,shore_y+8,3)
+ -- subtle grass texture (less dense)
+ for i=0,8 do
+  local gx=i*16+4
+  for gy=54,shore_y,10 do
+   pset(gx,gy,11)
+  end
+ end
+ 
+ -- dock/pier (3D wooden planks)
+ local dx=10 -- dock x
+ local dy=shore_y+4 -- dock y (moved down)
+ -- dock shadow
+ rectfill(dx-2,dy+8,dx+32,dy+12,1)
+ -- dock side (depth)
+ rectfill(dx-2,dy+2,dx+32,dy+8,4)
+ -- dock top
+ rectfill(dx-2,dy-2,dx+32,dy+2,9)
+ -- plank lines
+ for px=dx,dx+30,4 do
+  line(px,dy-2,px,dy+2,4)
+ end
+ -- dock posts going into water
+ rectfill(dx,dy+2,dx+3,dy+14,4)
+ rectfill(dx+28,dy+2,dx+31,dy+14,4)
+ 
+ -- water starts after dock
+ local water_start=dy+8
+ -- water with depth effect
+ for wy=water_start,127 do
+  local wc=1
+  if wy<water_start+10 then wc=12 end -- shallow/lighter
+  if wy>110 then wc=0 end -- deeper/darker
+  line(0,wy,127,wy,wc)
+ end
+ -- water surface highlight
+ line(0,water_start,127,water_start,7)
+ 
+ -- campfire (on grass, right side)
  draw_fire()
  
- -- particle-like waves
+ -- ripples on water
  draw_waves()
 end
 
