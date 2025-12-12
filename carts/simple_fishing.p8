@@ -60,12 +60,18 @@ end
 
 function draw_bgfish()
  for b in all(bgfish) do
-  -- small visible fish under surface: bright color for contrast
-  pset(b.x,b.y,8)
-  pset(b.x-1,b.y,6)
-  -- tail
-  line(b.x-2,b.y,b.x-4,b.y-1,6)
-  line(b.x-2,b.y,b.x-4,b.y+1,6)
+  -- brighter, larger silhouette
+  local c=13 -- dark grey/blue
+  if (b.y%4<2) c=6 -- light grey variation
+  
+  -- body
+  local off=b.dir*2
+  rectfill(b.x-2,b.y-1,b.x+2,b.y+1,c)
+  -- tail (directional)
+  line(b.x-off,b.y,b.x-off*2,b.y-2,c)
+  line(b.x-off,b.y,b.x-off*2,b.y+2,c)
+  -- eye (white dot)
+  pset(b.x+off,b.y-1,7)
  end
 end
 
@@ -96,6 +102,9 @@ function draw_waves()
 end
 
 function _init()
+ shake=0
+ tod=0.3 -- start at morning
+ tod_speed=0.0002 -- slow cycle
 end
 
 -- helpers
@@ -150,6 +159,8 @@ function update_parts()
    p.y+=p.vy
    if p.y>=water_y-1 or p.t<=0 then
     add(parts,{k="ring",x=p.x,y=water_y-2,r=1,vr=0.5+rnd(0.3),t=12,c=12})
+    -- soft splash sound
+    play_subtle_sfx("splash")
     if rnd(1)<0.6 then add(parts,{k="bubble",x=p.x,y=water_y+1,vx=rnd(0.2)-0.1,vy=-0.25-rnd(0.25),t=20+flr(rnd(20)),c=7}) end
     del(parts,p)
    end
@@ -158,6 +169,8 @@ function update_parts()
    p.y+=p.vy
    if p.y<=water_y-2 or p.t<=0 then
     add(parts,{k="ring",x=p.x,y=water_y-2,r=1,vr=0.3,t=10,c=7})
+    -- light bubble pop
+    play_subtle_sfx("bubble")
     del(parts,p)
    end
   elseif p.k=="ring" then
@@ -199,7 +212,7 @@ function reset_bobber()
 end
 
 function cast()
- local ang=lerp(-0.8,0.1,p.aim) -- up-left to slight up-right
+ local ang=lerp(0.4,0.1,p.aim) -- Left-Up to Right-Up
  b.x=p.x
  b.y=p.y-2
  b.vy=0
@@ -208,7 +221,7 @@ function cast()
  p.cx=cos(ang)*p.power
  p.cy=sin(ang)*p.power
  state="casting"
- sfx(0)
+ play_subtle_sfx("cast")
 end
 
 function start_waiting()
@@ -218,71 +231,110 @@ function start_waiting()
  b.bite_t=rndint(bite_min_wait,bite_max_wait)
  state="waiting"
  add_splash(b.x,water_y-2,10)
+ -- soft splash cue
+ play_subtle_sfx("splash")
 end
 
 function hook_fish()
  -- generate a fish when setting hook
  f={x=b.x,y=b.y,dx=0,dy=0,stamina=40+rnd(40),
      weight=0.5+rnd(4),tension=0,dir=choose({-1,1}),name=rand_fish(),
-     rarity=chance({0.7,"common",0.25,"uncommon",0.05,"rare"})}
+     rarity=chance({0.6,"common",0.25,"uncommon",0.14,"rare",0.01,"legendary"})}
  state="hooked"
- sfx(0)
+ play_subtle_sfx("hook")
 end
 
 function lose_fish(msg)
- sfx(1)
+ play_subtle_sfx("lose")
  add_floating_text(msg,b.x,b.y,9)
  reset_bobber()
  state="idle"
  f=nil
 end
 
-function fmt_w(w) return tostr(w,1).."lb" end
+function fmt_w(w)
+ -- format to 1 decimal place
+ local s=tostr(flr(w))
+ local d=flr((w-flr(w))*10)
+ return s.."."..d.."lb"
+end
 function rand_fish()
  local names={"sunfish","perch","bass","carp","pike","walleye","bluegill"}
  return choose(names)
 end
 function time() return t() end
 
--- drawing ------------------------------------------------------
+-- subtle sound helper: play quieter/less frequent SFX for a softer audio palette
+sfx_map={
+ cast=0,
+ hook=0,
+ lose=1,
+ bite=2,
+ win=3,
+ splash=0, -- reuse cast as gentle splash if no dedicated sfx
+ bubble=2,
+ spark=3
+}
+
+function play_subtle_sfx(name)
+ local id=sfx_map[name] or 0
+ -- reduce occurrence for ambient sounds
+ if name=="splash" then if rnd(1)>0.6 then return end end
+ if name=="bubble" then if rnd(1)>0.5 then return end end
+ if name=="spark" then if rnd(1)>0.85 then return end end
+ -- small detune/variation: sometimes offset to adjacent sfx id to vary tone
+ local det = (rnd(1)<0.25) and (flr(rnd(3))-1) or 0
+ local pid = clamp(id+det,0,63)
+ sfx(pid)
+end
+
+-- restore drawing functions that were removed earlier
 function draw_background()
- -- sky
- rectfill(0,0,127,shore_y-1,12)
- -- distant water band (parallax)
- for y=shore_y,water_y-1 do
-  local c=11
-  pset(0,0,c) -- no-op, keeps color ref quiet
- end
- rectfill(0,shore_y,127,water_y-1,11)
+ -- grass/ground (top-down perspective)
+ rectfill(0,0,127,shore_y,3)
+ -- cliff face
+ rectfill(0,shore_y,127,water_y,4)
  -- water
  rectfill(0,water_y,127,127,1)
+ -- cliff edge highlight
+ line(0,shore_y,127,shore_y,11)
+ -- water edge foam
+ line(0,water_y,127,water_y,7)
+ 
  -- particle-like waves
  draw_waves()
 end
 
 function draw_hud()
- print("score:"..score,1,1,7)
- print("fish:"..fish_caught,1,7,7)
+ -- top bar background
+ rectfill(0,0,127,8,0)
+ print("score:"..score,1,2,7)
+ print("fish:"..fish_caught,50,2,7)
+ 
  if best_w>0 then
-  print("best:"..best_name.."("..fmt_w(best_w)..")",44,1,6)
- else
-  print("best: none",44,1,6)
+  print("best:"..best_name.."("..fmt_w(best_w)..")",1,10,6)
  end
+ 
  if state=="idle" or state=="aim" then
-  print("arrows: aim",26,1,6)
-  print("z: cast   x: hook/reel",26,7,6)
+  -- controls at bottom
+  print("arrows: aim",1,115,6)
+  print("z: cast   x: hook/reel",1,121,6)
  end
 end
 
 function draw_player()
- -- simple fisherman sprite made of primitives
- rectfill(p.x-2,p.y-2,p.x+2,p.y+2,10) -- body
- circfill(p.x,p.y-6,2,7) -- head
+ -- simple fisherman sprite made of primitives (isometric-ish)
+ -- shadow
+ circfill(p.x,p.y+1,3,0)
+ -- body
+ rectfill(p.x-2,p.y-4,p.x+2,p.y,10)
+ -- head
+ circfill(p.x,p.y-5,2,7)
  -- rod
- line(p.x+3,p.y-6,p.x+10,p.y-14,5)
+ line(p.x+3,p.y-4,p.x+10,p.y-10,5)
  -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
-  local ang=lerp(-0.8,0.1,p.aim)
+  local ang=lerp(0.78,0.95,p.aim)
   local vx=cos(ang)*cast_power_max*0.1
   local vy=sin(ang)*cast_power_max*0.1
   local tx=p.x
@@ -311,17 +363,26 @@ function draw_bobber()
  end
  -- line
  if state~="idle" and state~="title" then
-  line(p.x+10,p.y-14,b.x,b.y,7)
+  line(p.x+10,p.y-10,b.x,b.y,7)
  end
 end
 
 function draw_fish()
  if f then
   -- hooked fish: make it bright so it's visible against water
-  circfill(f.x,f.y,3,8)
+  local col=8
+  if f.rarity=="uncommon" then col=11 end
+  if f.rarity=="rare" then col=12 end
+  if f.rarity=="legendary" then col=10+flr(time()*10)%2 end -- flash gold
+
+  -- outline for visibility
+  circfill(f.x,f.y,4,7)
+  circfill(f.x,f.y,3,col)
+  
   -- tail
-  line(f.x-4,f.y,f.x-8,f.y-2,9)
-  line(f.x-4,f.y,f.x-8,f.y+2,9)
+  local off=f.dir*3
+  line(f.x-off,f.y,f.x-off*2,f.y-2,col)
+  line(f.x-off,f.y,f.x-off*2,f.y+2,col)
  end
  -- draw ambient bg fish on top of water
  draw_bgfish()
@@ -351,8 +412,50 @@ function draw_fx()
  end
 end
 
--- update -------------------------------------------------------
+-- ambient sfx scheduler for Minecraft-like minimal ambience
+amb_sfx={} -- queued ambient sfx {name,t}
+amb_timer=180
+
+function schedule_sfx(name,delay)
+ add(amb_sfx,{name=name,t=delay})
+end
+
+-- process ambient queue and spawn sparse ambient cues
+function process_ambient()
+ -- tick queue
+ for i=#amb_sfx,1,-1 do
+  local e=amb_sfx[i]
+  e.t-=1
+  if e.t<=0 then
+   play_subtle_sfx(e.name)
+   del(amb_sfx,e)
+  end
+ end
+ -- ambient periodic spawner
+ amb_timer-=1
+ if amb_timer<=0 then
+  amb_timer=120+flr(rnd(240))
+  -- primary gentle pluck
+  play_subtle_sfx("cast")
+  -- occasional soft echo plucks
+  if rnd(1)<0.6 then
+   local echoes=1+flr(rnd(3))
+   for i=1,echoes do schedule_sfx("hook",2*i) end
+  end
+  -- low thud occasionally
+  if rnd(1)<0.25 then schedule_sfx("lose",4) end
+ end
+end
+
 function _update60()
+ -- ambient audio processing
+ process_ambient()
+
+ -- shake decay
+ shake=max(0,shake*0.9-0.1)
+ -- time of day
+ tod=(tod+tod_speed)%1
+
  update_parts()
  update_bgfish()
  update_waves()
@@ -364,7 +467,7 @@ function _update60()
   if btnp(4) or btnp(5) then state="idle" reset_bobber() end
   return
  end
- 
+
  -- aiming / idle
  if state=="idle" or state=="aim" then
   if btn(0) then p.aim=clamp(p.aim-0.01,0,1) state="aim" end
@@ -393,8 +496,8 @@ function _update60()
    b.biting=true
    state="bite"
    b.vy=1
-   sfx(2)
-   b.bite_window=18 -- ~0.3s
+   play_subtle_sfx("bite")
+   b.bite_window=30 -- ~0.5s (easier)
   end
   -- set hook early does nothing
   if btnp(4) or btnp(5) then add_floating_text("too soon!",b.x,b.y,8) end
@@ -416,46 +519,62 @@ function _update60()
  if state=="hooked" then
   -- fish fights: random pulls + player reels
   -- fish movement
-  f.dx=sin(time()*0.7)*0.4*f.dir + rnd(0.3)-0.15
+  local spd=0.4
+  if f.rarity=="legendary" then spd=0.8 end
+
+  f.dx=sin(time()*0.7)*spd*f.dir + rnd(0.3)-0.15
   f.dy=sin(time()*1.1)*0.3 + rnd(0.2)-0.1
+
+  -- legendary dash
+  if f.rarity=="legendary" and rnd(1)<0.05 then
+   f.dx+=choose({-2,2})
+   add_splash(f.x,f.y,4)
+  end
+
   f.x=clamp(f.x+f.dx,4,124)
   f.y=clamp(f.y+f.dy,water_y+6,124)
+
+  -- shake based on tension
+  if f.tension>line_max*0.5 then
+   shake=(f.tension/line_max)*2
+  end
   -- bobber follows fish with slack
   b.x=lerp(b.x,f.x,0.15)
   b.y=lerp(b.y,f.y-4,0.15)
   -- rare fish sparkle
-  if f.rarity=="rare" and rnd(1)<0.3 then
+  if (f.rarity=="rare" or f.rarity=="legendary") and rnd(1)<0.3 then
    add(parts,{k="spark",x=f.x,y=f.y,vx=rnd(0.3)-0.15,vy=-0.1-rnd(0.1),t=12,c=10})
+   play_subtle_sfx("spark")
   end
-  
+
   -- player reeling (accept either button as reel)
   if btn(5) or btn(4) then
    -- reduce stamina; increase tension
-   f.stamina=max(0,f.stamina-reel_gain)
-   f.tension=min(line_max, f.tension+1.5)
+   f.stamina=max(0,f.stamina-1.0) -- faster catch
+   f.tension=min(line_max, f.tension+1.0) -- less tension gain
    -- pull fish toward player x
-   f.x=lerp(f.x,p.x+12,0.02)
-   f.y=lerp(f.y,water_y+4,0.02)
+   f.x=lerp(f.x,p.x+12,0.04) -- faster reel speed
+   f.y=lerp(f.y,water_y+4,0.04)
    if rnd(1)<0.05 then add_splash(b.x,b.y,2) end
   else
    -- fish pulls if not reeling
-   f.tension=max(0,f.tension-0.6)
+   f.tension=max(0,f.tension-0.8) -- faster recovery
   end
   -- sudden fish runs
-  if rnd(1)<0.01 then
-   f.tension=min(line_max,f.tension+20)
+  if rnd(1)<0.005 then -- less frequent
+   f.tension=min(line_max,f.tension+15) -- less punishment
    add_floating_text("run!",f.x,f.y,10)
   end
-  
+
   -- line break
   if f.tension>=line_max then
    lose_fish("snap!")
    return
   end
-  
+
   -- land fish when close to player and low stamina
   if f.stamina<=0 and abs(f.x-(p.x+12))<6 and f.y<water_y+8 then
-   sfx(3)
+   play_subtle_sfx("win")
    local pts=flr(10+f.weight*5+(f.rarity=="rare" and 20 or f.rarity=="uncommon" and 10 or 0))
    score+=pts
    fish_caught+=1
@@ -469,29 +588,40 @@ function _update60()
  end
 end
 
-function _draw()
- cls(12)
- draw_background()
- draw_hud()
- draw_player()
- draw_bobber()
- draw_fish()
- draw_meter()
- draw_fx()
- draw_parts()
- if state=="title" then
-  rectfill(12,40,115,88,1)
-  rect(12,40,115,88,7)
-  print("tiny fishing!",38,48,7)
-  print("arrows aim  z cast",26,62,6)
-  print("x set hook / reel",32,70,6)
-  print("press any key",40,82,7)
- end
-end
-
 -- sfx map (placeholder):
 -- 0: cast/hook, 1: lose, 2: bite, 3: win
 -- if you add real sprites, replace draw_fish() with spr() calls.
+
+function set_palette()
+ pal() -- reset
+ if tod>0.4 and tod<0.6 then
+  -- sunset
+  pal(12,13) -- sky darker
+  pal(1,13) -- water darker
+ elseif tod>=0.6 or tod<0.1 then
+  -- night
+  pal(12,0) -- sky black
+  pal(1,1) -- water dark blue
+  pal(6,5) -- dim grays
+  pal(7,6)
+ end
+end
+
+function _draw()
+ set_palette()
+ cls(12) -- sky color
+ camera(rnd(shake)-shake/2,rnd(shake)-shake/2)
+ 
+ draw_background()
+ draw_player()
+ draw_bobber()
+ draw_fish()
+ draw_parts()
+ draw_fx()
+ camera(0,0)
+ draw_hud()
+ draw_meter()
+end
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
