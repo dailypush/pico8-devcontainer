@@ -212,12 +212,12 @@ function reset_bobber()
 end
 
 function cast()
- local ang=lerp(0.4,0.1,p.aim) -- Left-Up to Right-Up
+ local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
  b.x=p.x
  b.y=p.y-2
  b.vy=0
  p.vt=0
- p.power=cast_power_max
+ p.power=25 -- reduced power for lob
  p.cx=cos(ang)*p.power
  p.cy=sin(ang)*p.power
  state="casting"
@@ -264,28 +264,26 @@ function rand_fish()
 end
 function time() return t() end
 
--- subtle sound helper: play quieter/less frequent SFX for a softer audio palette
+-- sfx map
 sfx_map={
  cast=0,
- hook=0,
- lose=1,
- bite=2,
+ splash=0,
+ bite=1,
+ reel=2,
  win=3,
- splash=0, -- reuse cast as gentle splash if no dedicated sfx
- bubble=2,
- spark=3
+ lose=4,
+ spark=5
 }
 
 function play_subtle_sfx(name)
- local id=sfx_map[name] or 0
+ local id=sfx_map[name]
+ if not id then return end
+ 
  -- reduce occurrence for ambient sounds
- if name=="splash" then if rnd(1)>0.6 then return end end
- if name=="bubble" then if rnd(1)>0.5 then return end end
- if name=="spark" then if rnd(1)>0.85 then return end end
- -- small detune/variation: sometimes offset to adjacent sfx id to vary tone
- local det = (rnd(1)<0.25) and (flr(rnd(3))-1) or 0
- local pid = clamp(id+det,0,63)
- sfx(pid)
+ if name=="splash" and rnd(1)>0.6 then return end
+ if name=="spark" and rnd(1)>0.85 then return end
+ 
+ sfx(id)
 end
 
 -- restore drawing functions that were removed earlier
@@ -334,17 +332,17 @@ function draw_player()
  line(p.x+3,p.y-4,p.x+10,p.y-10,5)
  -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
-  local ang=lerp(0.78,0.95,p.aim)
-  local vx=cos(ang)*cast_power_max*0.1
-  local vy=sin(ang)*cast_power_max*0.1
+  local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
+  local vx=cos(ang)*2.5
+  local vy=sin(ang)*2.5
   local tx=p.x
   local ty=p.y-4
-  for i=1,22 do
+  for i=1,60 do -- longer preview for arc
    if ty>=water_y-2 then break end
-   pset(tx,ty,8)
+   if i%2==0 then pset(tx,ty,8) end -- dotted line
    tx+=vx
    ty+=vy
-   vy+=0.3
+   vy+=0.2 -- gravity
   end
   local lx=clamp(tx,2,125)
   circ(lx,water_y-2,3,10)
@@ -480,7 +478,7 @@ function _update60()
   -- projectile motion until hits water
   b.x+=p.cx*0.1
   b.y+=p.cy*0.1
-  p.cy+=0.3
+  p.cy+=0.2 -- gravity
   if b.y>=water_y-2 then
    b.y=water_y-2
    start_waiting()
@@ -556,6 +554,9 @@ function _update60()
    f.x=lerp(f.x,p.x+12,0.04) -- faster reel speed
    f.y=lerp(f.y,water_y+4,0.04)
    if rnd(1)<0.05 then add_splash(b.x,b.y,2) end
+   
+   -- reel sound
+   if (time()*60)%8<1 then sfx(2) end
   else
    -- fish pulls if not reeling
    f.tension=max(0,f.tension-0.8) -- faster recovery
@@ -631,9 +632,11 @@ __gfx__
 00077000000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00700700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
-001000000f0500e0500d0500c0500b0500a0500905008050070500605005050040500305002050010500005000050000500005000050000500005000050000500005000050000500005000050000500005
-001000001f0501e0501d0501c0501b0501a0501905018050170501605015050140501305012050110501005000050000500005000050000500005000050000500005000050000500005000050000500005
-00100000300503305035050380503a0503c0503e050400504205043050440504505046050470504805049050000500005000050000500005000050000500005000050000500005000050000500005000050
-00200000600506305065050680506a0506c0506e050700507205073050740507505076050770507805079050000500005000050000500005000050000500005000050000500005000050000500005000050
+01010000206501c64018630146201061000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000300503004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000106300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0801000024050280502b050300500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+02010000105510854000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000350403c04000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 41424344
