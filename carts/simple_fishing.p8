@@ -8,8 +8,9 @@ __lua__
 -- controls: arrows aim, z cast, x set hook / reel
 
 -- constants
-water_y=80           -- water surface y
 shore_y=72
+dock_y=shore_y+6
+water_y=dock_y+9      -- water surface y
 cast_power_max=60
 bite_min_wait=60     -- 1s at 60fps
 bite_max_wait=240    -- 4s
@@ -291,30 +292,66 @@ end
 -- campfire particles
 fire_parts={}
 function update_fire()
- -- spawn new fire particles
- if rnd(1)<0.4 then
-  local fx=105+rnd(4)-2
-  local fy=shore_y-10
+ local base_x=105
+ local base_y=shore_y-10
+
+ -- spawn flame tongues (dense near base)
+ if rnd(1)<0.7 then
   add(fire_parts,{
-   x=fx,
-   y=fy,
-   vx=rnd(0.4)-0.2,
-   vy=-0.3-rnd(0.4),
-   t=20+flr(rnd(20)),
-   c=choose({8,9,10,9,8}) -- red, orange, yellow
+   k="flame",
+   x=base_x+rnd(6)-3,
+   y=base_y+rnd(2),
+   vx=rnd(0.3)-0.15,
+   vy=-0.6-rnd(0.5),
+   t=10+flr(rnd(10)),
+   r=1+flr(rnd(2))
   })
  end
+
+ -- spawn embers (occasional sparks)
+ if rnd(1)<0.12 then
+  add(fire_parts,{
+   k="ember",
+   x=base_x+rnd(6)-3,
+   y=base_y,
+   vx=rnd(0.8)-0.4,
+   vy=-1.2-rnd(0.8),
+   t=8+flr(rnd(10))
+  })
+ end
+
+ -- spawn smoke (less frequent, drifts)
+ if rnd(1)<0.18 then
+  add(fire_parts,{
+   k="smoke",
+   x=base_x+rnd(6)-3,
+   y=base_y-6,
+   vx=rnd(0.2)-0.1,
+   vy=-0.3-rnd(0.2),
+   t=18+flr(rnd(20))
+  })
+ end
+
  -- update particles
  for i=#fire_parts,1,-1 do
   local p=fire_parts[i]
-  p.x+=p.vx
-  p.y+=p.vy
-  p.vy-=0.01 -- float up
   p.t-=1
-  -- fade color as it rises
-  if p.t<10 then p.c=2 end -- dark red/smoke
-  if p.t<5 then p.c=5 end -- grey smoke
-  if p.t<=0 then del(fire_parts,p) end
+  if p.k=="flame" then
+   p.x+=p.vx + sin(time()*6+p.y*0.2)*0.08
+   p.y+=p.vy
+   p.vy+=0.03 -- slow as it rises
+   if p.t<=0 then del(fire_parts,p) end
+  elseif p.k=="ember" then
+   p.x+=p.vx
+   p.y+=p.vy
+   p.vy+=0.08
+   p.vx*=0.92
+   if p.t<=0 then del(fire_parts,p) end
+  else -- smoke
+   p.x+=p.vx + sin(time()*2+p.x*0.15)*0.05
+   p.y+=p.vy
+   if p.t<=0 then del(fire_parts,p) end
+  end
  end
 end
 
@@ -334,13 +371,48 @@ function draw_fire()
  line(fx-3,fy+1,fx+3,fy+1,4)
  line(fx-2,fy,fx+2,fy+2,9)
  
- -- fire glow (warm orange)
- circfill(fx,fy-2,5,9)
- circfill(fx,fy-3,3,10)
- 
- -- fire particles
+ -- fire glow + flicker core
+ local flick=sin(time()*8)
+ circfill(fx,fy-1,6,2)
+ circfill(fx+flick,fy-4,4,9)
+ circfill(fx-flick,fy-6,3,10)
+
+ -- tapered flame core (reads more like licking flames)
+ for dy=0,11 do
+  local t=dy/11
+  local w=flr(4-(t*4))
+  local ox=sin(time()*9+dy*0.7)*1
+  local c=10
+  if dy>2 then c=9 end
+  if dy>6 then c=8 end
+  if dy>9 then c=2 end
+  if w>0 then
+   line(fx-w+ox,fy-2-dy,fx+w+ox,fy-2-dy,c)
+  else
+   pset(fx+ox,fy-2-dy,c)
+  end
+ end
+ pset(fx+flick,fy-14,7)
+
+ -- particles
  for p in all(fire_parts) do
-  pset(p.x,p.y,p.c)
+  if p.k=="flame" then
+   local c=8
+   if p.t>12 then c=10 elseif p.t>7 then c=9 elseif p.t>3 then c=8 else c=2 end
+   if p.r==2 then
+    circfill(p.x,p.y,1,c)
+   else
+    pset(p.x,p.y,c)
+    if rnd(1)<0.4 then pset(p.x,p.y+1,c) end
+   end
+  elseif p.k=="ember" then
+   local c=(p.t>6) and 10 or ((p.t>3) and 9 or 8)
+   pset(p.x,p.y,c)
+  else
+   local c=(p.t>10) and 13 or 5
+   pset(p.x,p.y,c)
+   if rnd(1)<0.25 then pset(p.x+1,p.y,c) end
+  end
  end
 end
 
@@ -380,23 +452,25 @@ function draw_background()
 
  -- fog/haze band at horizon
  rectfill(0,46,127,55,6)
- for i=0,40 do
-  pset(flr(rnd(128)),46+flr(rnd(10)),7)
+ if flr(time()*2)%3==0 then
+  for i=1,5 do
+   pset(flr(rnd(128)),46+flr(rnd(10)),7)
+  end
  end
 
  -- grass ground plane
  rectfill(0,56,127,shore_y+10,3)
  -- subtle grass texture (less dense + patterned)
- for i=0,7 do
-  local gx=i*18+6
-  for gy=60,shore_y+6,12 do
-   if (gx+gy)%3==0 then pset(gx,gy,11) end
+ for i=0,4 do
+  local gx=i*26+10
+  for gy=62,shore_y+6,14 do
+   if (gx+gy)%5==0 then pset(gx,gy,11) end
   end
  end
 
  -- dock/pier (3D wooden planks)
  local dx=10
- local dy=shore_y+6
+ local dy=dock_y
  -- dock shadow onto water (fade-ish)
  rectfill(dx-3,dy+9,dx+33,dy+12,1)
  rectfill(dx-1,dy+12,dx+31,dy+14,0)
@@ -413,10 +487,10 @@ function draw_background()
  rectfill(dx+28,dy+2,dx+31,dy+15,4)
 
  -- shoreline edge shadow (helps separation)
- line(0,dy+9,127,dy+9,1)
+ line(0,water_y,127,water_y,1)
 
  -- water starts after dock
- local water_start=dy+9
+ local water_start=water_y
  -- water with smoother depth gradient
  for wy=water_start,127 do
   local wc=1
@@ -427,15 +501,14 @@ function draw_background()
  end
  -- foam / surface highlight
  line(0,water_start,127,water_start,7)
- for i=0,18 do
-  local fx=flr(rnd(128))
-  if i%2==0 then pset(fx,water_start+1,7) end
+ for i=1,10 do
+  if i%2==0 then pset(flr(rnd(128)),water_start+1,7) end
  end
- -- occasional water sparkles
- if rnd(1)<0.6 then
-  for i=1,4 do
+ -- occasional water sparkles (kept subtle)
+ if rnd(1)<0.35 then
+  for i=1,2 do
    local sx=flr(rnd(128))
-   local sy=water_start+2+flr(rnd(18))
+   local sy=water_start+2+flr(rnd(14))
    pset(sx,sy,7)
   end
  end
@@ -472,50 +545,71 @@ rod_tip_x=0
 rod_tip_y=0
 
 function draw_player()
- -- cute cat fisherman (like reference image)
+ -- cute mouse fisherman (like reference image vibe)
  local x=p.x
  local y=p.y
  
  -- shadow
- ovalfill(x-3,y+14,x+3,y+16,0)
- 
+ ovalfill(x-4,y+14,x+4,y+16,0)
+
  -- feet
  rectfill(x-3,y+12,x-1,y+14,1)
  rectfill(x+1,y+12,x+3,y+14,1)
- 
- -- body (dark blue overalls)
- rectfill(x-4,y+2,x+4,y+12,1)
- 
+
+ -- body (overalls)
+ rectfill(x-4,y+3,x+4,y+12,1)
+ -- straps
+ pset(x-2,y+4,6)
+ pset(x+2,y+4,6)
+ line(x-2,y+4,x-1,y+7,6)
+ line(x+2,y+4,x+1,y+7,6)
+
  -- red bow/collar
- rectfill(x-4,y,x+4,y+2,8)
- pset(x-5,y+1,8)
- pset(x+5,y+1,8)
- 
- -- orange face
- rectfill(x-4,y-8,x+4,y,9)
- 
- -- ears (orange with dark tips)
- rectfill(x-5,y-12,x-3,y-8,9)
- rectfill(x+3,y-12,x+5,y-8,9)
- pset(x-4,y-12,8) -- ear tips
- pset(x+4,y-12,8)
- 
+ rectfill(x-4,y+1,x+4,y+3,8)
+ pset(x-5,y+2,8)
+ pset(x+5,y+2,8)
+
+ -- face (warm)
+ rectfill(x-4,y-8,x+4,y+1,9)
+ -- cheek shading
+ pset(x-3,y-2,10)
+ pset(x+3,y-2,10)
+
+ -- round ears (mouse) w/ outline
+ circ(x-6,y-11,3,0)
+ circ(x+6,y-11,3,0)
+ circfill(x-6,y-11,2,9)
+ circfill(x+6,y-11,2,9)
+ circfill(x-6,y-11,1,10)
+ circfill(x+6,y-11,1,10)
+
  -- headband (white)
- rectfill(x-4,y-10,x+4,y-9,7)
- 
- -- headphones (dark blue)
- rectfill(x-6,y-10,x-5,y-5,1)
- rectfill(x+5,y-10,x+6,y-5,1)
- pset(x-7,y-7,1) -- extra ear piece
- pset(x+7,y-7,1)
- 
+ rectfill(x-3,y-10,x+3,y-9,7)
+
+ -- headphones (dark blue) smaller so ears read first
+ line(x-3,y-12,x+3,y-12,1)
+ circfill(x-6,y-7,1,1)
+ circfill(x+6,y-7,1,1)
+
  -- eyes (white)
  pset(x-2,y-5,7)
  pset(x+2,y-5,7)
- 
- -- arms (orange)
- rectfill(x-5,y+2,x-4,y+5,9)
- rectfill(x+4,y+2,x+5,y+5,9)
+ -- snout + nose + whiskers
+ ovalfill(x-2,y-3,x+2,y,10)
+ pset(x,y-2,0)
+ line(x-4,y-2,x-2,y-2,0)
+ line(x+2,y-2,x+4,y-2,0)
+ -- tiny mouth
+ pset(x-1,y,0)
+ pset(x+1,y,0)
+
+ -- arms (warm)
+ rectfill(x-5,y+4,x-4,y+7,9)
+ rectfill(x+4,y+4,x+5,y+7,9)
+
+ -- tiny tail (optional read)
+ pset(x-5,y+10,9)
+ pset(x-6,y+11,9)
  
  -- fishing rod (diagonal, going up-right)
  rod_tip_x=x+16
