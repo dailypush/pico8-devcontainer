@@ -25,7 +25,7 @@ best_w=0
 best_name="-"
 
 -- player
-p={x=16,y=shore_y,aim=0.5,casting=false,cx=0,cy=0,vt=0,power=0}
+p={x=20,y=shore_y-8,aim=0.5,casting=false,cx=0,cy=0,vt=0,power=0}
 
 -- bobber
 b={x=0,y=0,vy=0,in_water=false,waiting_t=0,bite_t=0,biting=false}
@@ -202,8 +202,8 @@ function draw_parts()
 end
 
 function reset_bobber()
- b.x=p.x
- b.y=p.y-2
+ b.x=rod_tip_x or p.x+16
+ b.y=rod_tip_y or p.y-8
  b.vy=0
  b.in_water=false
  b.waiting_t=0
@@ -213,11 +213,11 @@ end
 
 function cast()
  local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
- b.x=p.x
- b.y=p.y-2
+ b.x=rod_tip_x or p.x+16
+ b.y=rod_tip_y or p.y-8
  b.vy=0
  p.vt=0
- p.power=25 -- reduced power for lob
+ p.power=40 -- good range
  p.cx=cos(ang)*p.power
  p.cy=sin(ang)*p.power
  state="casting"
@@ -320,23 +320,68 @@ function draw_hud()
  end
 end
 
+-- rod tip position (global for line drawing)
+rod_tip_x=0
+rod_tip_y=0
+
 function draw_player()
- -- simple fisherman sprite made of primitives (isometric-ish)
+ -- cute cat fisherman (like reference image)
+ local x=p.x
+ local y=p.y
+ 
  -- shadow
- circfill(p.x,p.y+1,3,0)
- -- body
- rectfill(p.x-2,p.y-4,p.x+2,p.y,10)
- -- head
- circfill(p.x,p.y-5,2,7)
- -- rod
- line(p.x+3,p.y-4,p.x+10,p.y-10,5)
+ ovalfill(x-3,y+14,x+3,y+16,0)
+ 
+ -- feet
+ rectfill(x-3,y+12,x-1,y+14,1)
+ rectfill(x+1,y+12,x+3,y+14,1)
+ 
+ -- body (dark blue overalls)
+ rectfill(x-4,y+2,x+4,y+12,1)
+ 
+ -- red bow/collar
+ rectfill(x-4,y,x+4,y+2,8)
+ pset(x-5,y+1,8)
+ pset(x+5,y+1,8)
+ 
+ -- orange face
+ rectfill(x-4,y-8,x+4,y,9)
+ 
+ -- ears (orange with dark tips)
+ rectfill(x-5,y-12,x-3,y-8,9)
+ rectfill(x+3,y-12,x+5,y-8,9)
+ pset(x-4,y-12,8) -- ear tips
+ pset(x+4,y-12,8)
+ 
+ -- headband (white)
+ rectfill(x-4,y-10,x+4,y-9,7)
+ 
+ -- headphones (dark blue)
+ rectfill(x-6,y-10,x-5,y-5,1)
+ rectfill(x+5,y-10,x+6,y-5,1)
+ pset(x-7,y-7,1) -- extra ear piece
+ pset(x+7,y-7,1)
+ 
+ -- eyes (white)
+ pset(x-2,y-5,7)
+ pset(x+2,y-5,7)
+ 
+ -- arms (orange)
+ rectfill(x-5,y+2,x-4,y+5,9)
+ rectfill(x+4,y+2,x+5,y+5,9)
+ 
+ -- fishing rod (diagonal, going up-right)
+ rod_tip_x=x+16
+ rod_tip_y=y-8
+ line(x+5,y+2,rod_tip_x,rod_tip_y,4)
+ line(x+5,y+3,rod_tip_x,rod_tip_y-1,4)
  -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
   local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
-  local vx=cos(ang)*2.5
-  local vy=sin(ang)*2.5
-  local tx=p.x
-  local ty=p.y-4
+  local vx=cos(ang)*4
+  local vy=sin(ang)*4
+  local tx=rod_tip_x
+  local ty=rod_tip_y
   for i=1,60 do -- longer preview for arc
    if ty>=water_y-2 then break end
    if i%2==0 then pset(tx,ty,8) end -- dotted line
@@ -361,7 +406,7 @@ function draw_bobber()
  end
  -- line
  if state~="idle" and state~="title" then
-  line(p.x+10,p.y-10,b.x,b.y,7)
+  line(rod_tip_x,rod_tip_y,b.x,b.y,7)
  end
 end
 
@@ -608,7 +653,38 @@ function set_palette()
  end
 end
 
+function draw_title()
+ cls(1)
+ -- water shimmer
+ for i=0,127 do
+  local off=sin(time()+i*0.05)*2
+  pset(i,64+off,12)
+ end
+ 
+ -- title
+ local tx=64-24
+ print("🐱 cat fishing 🐱",tx-8,30,7)
+ print("cat fishing",tx,32,9)
+ 
+ -- bobber animation
+ local by=50+sin(time()*2)*3
+ circfill(64,by,4,7)
+ circfill(64,by-2,4,8)
+ 
+ -- instructions
+ print("arrows: aim your cast",24,80,6)
+ print("z: cast line",40,90,6)
+ print("x: hook & reel",36,100,6)
+ 
+ print("press z or x to start",22,115,7)
+end
+
 function _draw()
+ if state=="title" then
+  draw_title()
+  return
+ end
+ 
  set_palette()
  cls(12) -- sky color
  camera(rnd(shake)-shake/2,rnd(shake)-shake/2)
