@@ -344,65 +344,64 @@ function draw_fire()
  end
 end
 
+function shprint(s,x,y,c)
+ print(s,x+1,y+1,0)
+ print(s,x,y,c)
+end
+
 function draw_background()
  -- sky gradient
  for y=0,50 do
   local c=12
-  if y<15 then c=12 end
-  if y>=15 and y<30 then c=6 end
-  if y>=30 then c=7 end
+  if y>=14 and y<28 then c=6 end
+  if y>=28 then c=7 end
   line(0,y,127,y,c)
  end
- 
- -- distant mountains (pointing UP)
- -- mountain 1
- local m1x=20
- for dy=0,20 do
-  local w=dy -- wider at bottom
-  line(m1x-w,50-dy,m1x+w,50-dy,5) -- grey mountain
- end
- pset(m1x,29,7) -- snow cap
- pset(m1x-1,30,7)
- pset(m1x+1,30,7)
- 
- -- mountain 2 (taller)
- local m2x=60
- for dy=0,28 do
-  local w=dy*0.8
-  line(m2x-w,50-dy,m2x+w,50-dy,5)
- end
- -- snow cap
- for sy=0,5 do
-  line(m2x-sy,22+sy,m2x+sy,22+sy,7)
- end
- 
- -- mountain 3
- local m3x=100
- for dy=0,18 do
-  local w=dy
-  line(m3x-w,50-dy,m3x+w,50-dy,5)
- end
- pset(m3x,31,7)
- pset(m3x-1,32,7)
- pset(m3x+1,32,7)
- 
- -- grass ground plane
- rectfill(0,50,127,shore_y+8,3)
- -- subtle grass texture (less dense)
- for i=0,8 do
-  local gx=i*16+4
-  for gy=54,shore_y,10 do
-   pset(gx,gy,11)
+
+ -- distant mountains (layered)
+ local basey=52
+ local function mountain(mx,h,basec,snowc)
+  for dy=0,h do
+   local w=dy
+   line(mx-w,basey-dy,mx+w,basey-dy,basec)
+  end
+  for sy=0,flr(h*0.22) do
+   line(mx-sy,basey-h+sy,mx+sy,basey-h+sy,snowc)
   end
  end
- 
+ -- back layer (darker)
+ mountain(18,18,13,6)
+ mountain(56,26,13,6)
+ mountain(102,16,13,6)
+ -- front layer (lighter)
+ mountain(32,22,5,7)
+ mountain(78,30,5,7)
+ mountain(118,20,5,7)
+
+ -- fog/haze band at horizon
+ rectfill(0,46,127,55,6)
+ for i=0,40 do
+  pset(flr(rnd(128)),46+flr(rnd(10)),7)
+ end
+
+ -- grass ground plane
+ rectfill(0,56,127,shore_y+10,3)
+ -- subtle grass texture (less dense + patterned)
+ for i=0,7 do
+  local gx=i*18+6
+  for gy=60,shore_y+6,12 do
+   if (gx+gy)%3==0 then pset(gx,gy,11) end
+  end
+ end
+
  -- dock/pier (3D wooden planks)
- local dx=10 -- dock x
- local dy=shore_y+4 -- dock y (moved down)
- -- dock shadow
- rectfill(dx-2,dy+8,dx+32,dy+12,1)
+ local dx=10
+ local dy=shore_y+6
+ -- dock shadow onto water (fade-ish)
+ rectfill(dx-3,dy+9,dx+33,dy+12,1)
+ rectfill(dx-1,dy+12,dx+31,dy+14,0)
  -- dock side (depth)
- rectfill(dx-2,dy+2,dx+32,dy+8,4)
+ rectfill(dx-2,dy+2,dx+32,dy+9,4)
  -- dock top
  rectfill(dx-2,dy-2,dx+32,dy+2,9)
  -- plank lines
@@ -410,42 +409,61 @@ function draw_background()
   line(px,dy-2,px,dy+2,4)
  end
  -- dock posts going into water
- rectfill(dx,dy+2,dx+3,dy+14,4)
- rectfill(dx+28,dy+2,dx+31,dy+14,4)
- 
+ rectfill(dx,dy+2,dx+3,dy+15,4)
+ rectfill(dx+28,dy+2,dx+31,dy+15,4)
+
+ -- shoreline edge shadow (helps separation)
+ line(0,dy+9,127,dy+9,1)
+
  -- water starts after dock
- local water_start=dy+8
- -- water with depth effect
+ local water_start=dy+9
+ -- water with smoother depth gradient
  for wy=water_start,127 do
   local wc=1
-  if wy<water_start+10 then wc=12 end -- shallow/lighter
-  if wy>110 then wc=0 end -- deeper/darker
+  if wy<water_start+8 then wc=12 end
+  if wy>100 then wc=13 end
+  if wy>116 then wc=0 end
   line(0,wy,127,wy,wc)
  end
- -- water surface highlight
+ -- foam / surface highlight
  line(0,water_start,127,water_start,7)
- 
+ for i=0,18 do
+  local fx=flr(rnd(128))
+  if i%2==0 then pset(fx,water_start+1,7) end
+ end
+ -- occasional water sparkles
+ if rnd(1)<0.6 then
+  for i=1,4 do
+   local sx=flr(rnd(128))
+   local sy=water_start+2+flr(rnd(18))
+   pset(sx,sy,7)
+  end
+ end
+
  -- campfire (on grass, right side)
  draw_fire()
- 
+
  -- ripples on water
  draw_waves()
 end
 
 function draw_hud()
- -- top bar background
- rectfill(0,0,127,8,0)
- print("score:"..score,1,2,7)
- print("fish:"..fish_caught,50,2,7)
- 
+ -- top HUD bar
+ rectfill(0,0,127,10,0)
+ shprint("score:"..score,2,2,7)
+ shprint("fish:"..fish_caught,70,2,7)
+
+ -- best line (own strip for readability)
  if best_w>0 then
-  print("best:"..best_name.."("..fmt_w(best_w)..")",1,10,6)
+  rectfill(0,10,127,18,0)
+  shprint("best:"..best_name.."("..fmt_w(best_w)..")",2,12,6)
  end
- 
+
  if state=="idle" or state=="aim" then
   -- controls at bottom
-  print("</>: aim short/far",1,115,6)
-  print("z: cast   x: hook/reel",1,121,6)
+  rectfill(0,112,127,127,0)
+  shprint("</> or ^/v: aim",2,114,6)
+  shprint("z: cast   x: hook/reel",2,122,6)
  end
 end
 
@@ -822,7 +840,7 @@ function draw_title()
  
  -- title
  local tx=64-24
- print("🐱 cat fishing 🐱",tx-8,30,7)
+ print("= cat fishing =",tx-2,30,7)
  print("cat fishing",tx,32,9)
  
  -- bobber animation
