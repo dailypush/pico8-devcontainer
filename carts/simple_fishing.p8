@@ -212,12 +212,12 @@ function reset_bobber()
 end
 
 function cast()
- local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
+ local ang=lerp(0.95,0.85,p.aim) -- mostly rightward, slight arc
  b.x=rod_tip_x or p.x+16
  b.y=rod_tip_y or p.y-8
  b.vy=0
  p.vt=0
- p.power=40 -- good range
+ p.power=50 -- longer range
  p.cx=cos(ang)*p.power
  p.cy=sin(ang)*p.power
  state="casting"
@@ -287,6 +287,61 @@ function play_subtle_sfx(name)
 end
 
 -- restore drawing functions that were removed earlier
+
+-- campfire particles
+fire_parts={}
+function update_fire()
+ -- spawn new fire particles
+ if rnd(1)<0.4 then
+  local fx=115+rnd(6)-3
+  local fy=shore_y-4
+  add(fire_parts,{
+   x=fx,
+   y=fy,
+   vx=rnd(0.4)-0.2,
+   vy=-0.3-rnd(0.4),
+   t=20+flr(rnd(20)),
+   c=choose({8,9,10,9,8}) -- red, orange, yellow
+  })
+ end
+ -- update particles
+ for i=#fire_parts,1,-1 do
+  local p=fire_parts[i]
+  p.x+=p.vx
+  p.y+=p.vy
+  p.vy-=0.01 -- float up
+  p.t-=1
+  -- fade color as it rises
+  if p.t<10 then p.c=2 end -- dark red/smoke
+  if p.t<5 then p.c=5 end -- grey smoke
+  if p.t<=0 then del(fire_parts,p) end
+ end
+end
+
+function draw_fire()
+ -- campfire base (logs)
+ local fx=115
+ local fy=shore_y-2
+ -- logs
+ line(fx-4,fy,fx+4,fy,4)
+ line(fx-3,fy+1,fx+3,fy+1,4)
+ line(fx-5,fy+1,fx-2,fy-1,4)
+ line(fx+2,fy-1,fx+5,fy+1,4)
+ 
+ -- fire glow (circle behind flames)
+ circfill(fx,fy-4,6,2)
+ 
+ -- fire particles
+ for p in all(fire_parts) do
+  pset(p.x,p.y,p.c)
+ end
+ 
+ -- occasional sparks going higher
+ if rnd(1)<0.1 then
+  pset(fx+rnd(8)-4,fy-10-rnd(6),9)
+ end
+end
+
 function draw_background()
  -- grass/ground (top-down perspective)
  rectfill(0,0,127,shore_y,3)
@@ -298,6 +353,9 @@ function draw_background()
  line(0,shore_y,127,shore_y,11)
  -- water edge foam
  line(0,water_y,127,water_y,7)
+ 
+ -- campfire in far right background
+ draw_fire()
  
  -- particle-like waves
  draw_waves()
@@ -315,7 +373,7 @@ function draw_hud()
  
  if state=="idle" or state=="aim" then
   -- controls at bottom
-  print("arrows: aim",1,115,6)
+  print("</>: aim short/far",1,115,6)
   print("z: cast   x: hook/reel",1,121,6)
  end
 end
@@ -377,12 +435,12 @@ function draw_player()
  line(x+5,y+3,rod_tip_x,rod_tip_y-1,4)
  -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
-  local ang=lerp(0.6,0.9,p.aim) -- Up-Left to Up-Right
-  local vx=cos(ang)*4
-  local vy=sin(ang)*4
+  local ang=lerp(0.95,0.85,p.aim) -- match cast angle
+  local vx=cos(ang)*5
+  local vy=sin(ang)*5
   local tx=rod_tip_x
   local ty=rod_tip_y
-  for i=1,60 do -- longer preview for arc
+  for i=1,80 do
    if ty>=water_y-2 then break end
    if i%2==0 then pset(tx,ty,8) end -- dotted line
    tx+=vx
@@ -529,6 +587,7 @@ function _update60()
  update_parts()
  update_bgfish()
  update_waves()
+ update_fire()
  -- debug: show button presses for troubleshooting input mapping
  if btnp(4) then add_floating_text("z pressed",p.x,p.y-14,8) end
  if btnp(5) then add_floating_text("x pressed",p.x+12,p.y-14,9) end
@@ -540,8 +599,10 @@ function _update60()
 
  -- aiming / idle
  if state=="idle" or state=="aim" then
-  if btn(0) then p.aim=clamp(p.aim-0.01,0,1) state="aim" end
-  if btn(1) then p.aim=clamp(p.aim+0.01,0,1) state="aim" end
+  -- left or up = shorter cast (closer)
+  if btn(0) or btn(2) then p.aim=clamp(p.aim-0.01,0,1) state="aim" end
+  -- right or down = longer cast (further)
+  if btn(1) or btn(3) then p.aim=clamp(p.aim+0.01,0,1) state="aim" end
   if btnp(4) then cast() end
   return
  end
@@ -699,7 +760,7 @@ function draw_title()
  circfill(64,by-2,4,8)
  
  -- instructions
- print("arrows: aim your cast",24,80,6)
+ print("</> or ^/v: aim cast",20,80,6)
  print("z: cast line",40,90,6)
  print("x: hook & reel",36,100,6)
  
