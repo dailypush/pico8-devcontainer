@@ -417,6 +417,58 @@ function shprint(s,x,y,c)
  print(s,x,y,c)
 end
 
+-- chunky control glyphs stay readable on a small screen
+function draw_keycap(x,y,k,c)
+ rectfill(x,y,x+9,y+9,0)
+ rect(x,y,x+9,y+9,c or 7)
+ line(x+2,y+8,x+7,y+8,5)
+ print(k,x+3,y+2,c or 7)
+end
+
+function draw_dpad(x,y,c)
+ local col=c or 7
+ rectfill(x+4,y,x+8,y+12,0)
+ rectfill(x,y+4,x+12,y+8,0)
+ rect(x+4,y,x+8,y+12,col)
+ rect(x,y+4,x+12,y+8,col)
+ pset(x+6,y+2,col)
+ pset(x+2,y+6,col)
+ pset(x+10,y+6,col)
+ pset(x+6,y+10,col)
+end
+
+function draw_controls()
+ local flash=flr(time()*8)%2==0
+ local panel=0
+ local accent=7
+ if state=="bite" then
+  panel=flash and 8 or 2
+  accent=10
+ end
+ rectfill(0,111,127,127,panel)
+ line(0,111,127,111,state=="bite" and 10 or 5)
+
+ if state=="idle" or state=="aim" then
+  draw_dpad(3,113,12)
+  shprint("aim",19,116,7)
+  draw_keycap(46,113,"z",10)
+  shprint("cast",59,116,7)
+  print("range",91,116,6)
+ elseif state=="casting" then
+  shprint("casting...",43,116,12)
+ elseif state=="waiting" then
+  draw_keycap(17,113,"x",10)
+  shprint("hook when it bites!",31,116,7)
+ elseif state=="bite" then
+  draw_keycap(25,113,"x",10)
+  shprint("hook now!",40,116,10)
+ elseif state=="hooked" then
+  draw_keycap(17,113,"x",10)
+  shprint("hold to reel",31,116,7)
+  print("release red",84,116,8)
+ end
+end
+
 -- small scenery helpers keep the landscape crisp at 128x128
 function draw_cloud(x,y,c)
  circfill(x,y+2,4,c)
@@ -595,12 +647,7 @@ function draw_hud()
   shprint("best:"..best_name.."("..fmt_w(best_w)..")",2,12,6)
  end
 
- if state=="idle" or state=="aim" then
-  -- controls at bottom
-  rectfill(0,112,127,127,0)
-  shprint("</> or ^/v: aim",2,114,6)
-  shprint("z: cast   x: hook/reel",2,122,6)
- end
+ draw_controls()
 end
 
 -- rod tip position (global for line drawing)
@@ -1077,8 +1124,12 @@ function draw_title()
  print("a tiny lakeside tale",27,22,6)
  rectfill(8,98,119,127,0)
  line(8,98,119,98,5)
- print("arrows aim   z cast",27,102,6)
- print("x hooks + reels",32,110,6)
+ draw_dpad(13,101,12)
+ print("aim",29,105,7)
+ draw_keycap(49,102,"z",10)
+ print("cast",61,105,7)
+ draw_keycap(83,102,"x",10)
+ print("reel",95,105,7)
  if flr(time()*2)%2==0 then
   shprint("press z or x",39,120,7)
  end
