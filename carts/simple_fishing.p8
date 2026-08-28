@@ -61,18 +61,14 @@ end
 
 function draw_bgfish()
  for b in all(bgfish) do
-  -- brighter, larger silhouette
-  local c=13 -- dark grey/blue
-  if (b.y%4<2) c=6 -- light grey variation
-  
-  -- body
-  local off=b.dir*2
-  rectfill(b.x-2,b.y-1,b.x+2,b.y+1,c)
-  -- tail (directional)
-  line(b.x-off,b.y,b.x-off*2,b.y-2,c)
-  line(b.x-off,b.y,b.x-off*2,b.y+2,c)
-  -- eye (white dot)
-  pset(b.x+off,b.y-1,7)
+  local c=(flr(b.y)%4<2) and 13 or 5
+  local bob=sin(time()*0.7+b.x/32)
+  local head=b.x+b.dir*2
+  local tail=b.x-b.dir*3
+  ovalfill(b.x-3,b.y-1+bob,b.x+3,b.y+1+bob,c)
+  line(tail,b.y+bob,tail-b.dir*3,b.y-2+bob,c)
+  line(tail,b.y+bob,tail-b.dir*3,b.y+2+bob,c)
+  pset(head,b.y-1+bob,6)
  end
 end
 
@@ -421,6 +417,32 @@ function shprint(s,x,y,c)
  print(s,x,y,c)
 end
 
+-- small scenery helpers keep the landscape crisp at 128x128
+function draw_cloud(x,y,c)
+ circfill(x,y+2,4,c)
+ circfill(x+5,y,5,c)
+ circfill(x+11,y+2,4,c)
+ rectfill(x,y+2,x+11,y+5,c)
+end
+
+function draw_pine(x,y,h)
+ line(x,y-h,x,y,4)
+ for i=3,h,4 do
+  local w=flr(i/3)+2
+  line(x-w,y-h+i,x+w,y-h+i,3)
+  line(x-w+1,y-h+i-1,x+w-1,y-h+i-1,11)
+ end
+end
+
+function draw_reeds(x,y)
+ for i=0,3 do
+  local rx=x+i*2
+  local rh=3+(i%3)*2
+  line(rx,y,rx,y-rh,3)
+  pset(rx+(i%2)*2-1,y-rh,11)
+ end
+end
+
 function draw_background()
  -- sky gradient
  for y=0,50 do
@@ -429,6 +451,28 @@ function draw_background()
   if y>=28 then c=7 end
   line(0,y,127,y,c)
  end
+
+ -- sun, moon and fixed stars make the day cycle readable
+ local sx=8+tod*112
+ local sy=40-sin(tod)*27
+ circfill(sx,sy,6,10)
+ circfill(sx-2,sy-2,3,7)
+ local mx=8+((tod+0.5)%1)*112
+ local my=40-sin((tod+0.5)%1)*27
+ circfill(mx,my,5,6)
+ circfill(mx+2,my-1,4,12)
+ if tod>=0.6 or tod<0.1 then
+  for i=0,15 do
+   local xx=(i*29+7)%128
+   local yy=5+(i*17)%34
+   pset(xx,yy,(i%3==0) and 7 or 6)
+  end
+ end
+
+ -- slow cloud layers (wrapped so they never pop at screen edges)
+ local drift=time()*2
+ draw_cloud((18+drift)%150-14,18,7)
+ draw_cloud((82+drift*0.6)%160-16,29,6)
 
  -- distant mountains (layered)
  local basey=52
@@ -468,6 +512,11 @@ function draw_background()
   end
  end
 
+ -- tree silhouettes frame the quiet campsite
+ draw_pine(4,shore_y+7,19)
+ draw_pine(119,shore_y+7,16)
+ draw_pine(126,shore_y+8,22)
+
  -- dock/pier (3D wooden planks)
  local dx=10
  local dy=dock_y
@@ -482,6 +531,7 @@ function draw_background()
  for px=dx,dx+30,4 do
   line(px,dy-2,px,dy+2,4)
  end
+ line(dx-2,dy-2,dx+32,dy-2,10)
  -- dock posts going into water
  rectfill(dx,dy+2,dx+3,dy+15,4)
  rectfill(dx+28,dy+2,dx+31,dy+15,4)
@@ -501,8 +551,10 @@ function draw_background()
  end
  -- foam / surface highlight
  line(0,water_start,127,water_start,7)
- for i=1,10 do
-  if i%2==0 then pset(flr(rnd(128)),water_start+1,7) end
+ for i=0,7 do
+  local wx=(i*19+flr(time()*4))%140-6
+  local wy=water_start+5+(i%4)*9
+  line(wx,wy,wx+5+(i%3),wy,(i%2==0) and 12 or 13)
  end
  -- occasional water sparkles (kept subtle)
  if rnd(1)<0.35 then
@@ -516,6 +568,11 @@ function draw_background()
  -- campfire (on grass, right side)
  draw_fire()
 
+ -- reeds soften the hard shoreline edge
+ draw_reeds(48,water_start+2)
+ draw_reeds(77,water_start+1)
+ draw_reeds(116,water_start+2)
+
  -- ripples on water
  draw_waves()
 end
@@ -523,8 +580,14 @@ end
 function draw_hud()
  -- top HUD bar
  rectfill(0,0,127,10,0)
- shprint("score:"..score,2,2,7)
- shprint("fish:"..fish_caught,70,2,7)
+ line(0,10,127,10,5)
+ -- tiny hook and fish icons break up the text-heavy hud
+ circ(3,4,2,6)
+ pset(5,2,6)
+ shprint("score "..score,9,2,7)
+ ovalfill(73,4,77,6,12)
+ pset(78,4,12)
+ shprint("x"..fish_caught,81,2,7)
 
  -- best line (own strip for readability)
  if best_w>0 then
@@ -545,77 +608,73 @@ rod_tip_x=0
 rod_tip_y=0
 
 function draw_player()
- -- cute mouse fisherman (like reference image vibe)
+ -- orange cat fisherman: headphones, red shirt, blue overalls
  local x=p.x
  local y=p.y
  
  -- shadow
- ovalfill(x-4,y+14,x+4,y+16,0)
+ ovalfill(x-6,y+14,x+6,y+16,0)
 
- -- feet
- rectfill(x-3,y+12,x-1,y+14,1)
- rectfill(x+1,y+12,x+3,y+14,1)
+ -- curling tail behind the body
+ line(x-5,y+8,x-8,y+11,9)
+ line(x-8,y+11,x-10,y+8,9)
+ pset(x-10,y+7,10)
 
- -- body (overalls)
- rectfill(x-4,y+3,x+4,y+12,1)
- -- straps
- pset(x-2,y+4,6)
- pset(x+2,y+4,6)
- line(x-2,y+4,x-1,y+7,6)
- line(x+2,y+4,x+1,y+7,6)
+ -- separated overall legs and boots
+ rectfill(x-4,y+9,x-1,y+13,1)
+ rectfill(x+1,y+9,x+4,y+13,1)
+ rectfill(x-5,y+13,x-1,y+14,5)
+ rectfill(x+1,y+13,x+5,y+14,5)
 
- -- red bow/collar
- rectfill(x-4,y+1,x+4,y+3,8)
- pset(x-5,y+2,8)
- pset(x+5,y+2,8)
+ -- red shirt, orange paws, and deep-blue overalls
+ rectfill(x-5,y+2,x+5,y+7,8)
+ rectfill(x-6,y+4,x-5,y+8,9)
+ rectfill(x+5,y+4,x+6,y+8,9)
+ pset(x-6,y+4,10)
+ pset(x+6,y+4,10)
+ rectfill(x-4,y+5,x+4,y+11,1)
+ rectfill(x-3,y+5,x+3,y+9,5)
+ line(x-3,y+2,x-2,y+6,1)
+ line(x+3,y+2,x+2,y+6,1)
+ pset(x-2,y+7,6)
+ pset(x+2,y+7,6)
 
- -- face (warm)
- rectfill(x-4,y-8,x+4,y+1,9)
- -- cheek shading
- pset(x-3,y-2,10)
- pset(x+3,y-2,10)
+ -- squared orange face with clipped lower corners
+ rectfill(x-5,y-8,x+5,y+1,9)
+ pset(x-5,y+1,0)
+ pset(x+5,y+1,0)
+ line(x-4,y-7,x-4,y-6,10)
+ line(x+4,y-7,x+4,y-6,10)
 
- -- round ears (mouse) w/ outline
- circ(x-6,y-11,3,0)
- circ(x+6,y-11,3,0)
- circfill(x-6,y-11,2,9)
- circfill(x+6,y-11,2,9)
- circfill(x-6,y-11,1,10)
- circfill(x+6,y-11,1,10)
+ -- tall cat ears with warm inner pixels
+ rectfill(x-5,y-12,x-3,y-8,9)
+ rectfill(x+3,y-12,x+5,y-8,9)
+ pset(x-4,y-13,10)
+ pset(x+4,y-13,10)
+ pset(x-4,y-11,8)
+ pset(x+4,y-11,8)
 
- -- headband (white)
- rectfill(x-3,y-10,x+3,y-9,7)
+ -- navy headphone bridge and chunky ear cups
+ rectfill(x-3,y-12,x+3,y-11,1)
+ pset(x-4,y-10,1)
+ pset(x+4,y-10,1)
+ rectfill(x-7,y-7,x-5,y-2,1)
+ rectfill(x+5,y-7,x+7,y-2,1)
+ rectfill(x-7,y-3,x-6,y,5)
+ rectfill(x+6,y-3,x+7,y,5)
+ pset(x-5,y-9,8)
+ pset(x+5,y-9,8)
 
- -- headphones (dark blue) smaller so ears read first
- line(x-3,y-12,x+3,y-12,1)
- circfill(x-6,y-7,1,1)
- circfill(x+6,y-7,1,1)
-
- -- eyes (white)
- pset(x-2,y-5,7)
- pset(x+2,y-5,7)
- -- snout + nose + whiskers
- ovalfill(x-2,y-3,x+2,y,10)
+ -- simple vertical eyes and tiny square nose
+ line(x-2,y-5,x-2,y-4,0)
+ line(x+2,y-5,x+2,y-4,0)
  pset(x,y-2,0)
- line(x-4,y-2,x-2,y-2,0)
- line(x+2,y-2,x+4,y-2,0)
- -- tiny mouth
- pset(x-1,y,0)
- pset(x+1,y,0)
-
- -- arms (warm)
- rectfill(x-5,y+4,x-4,y+7,9)
- rectfill(x+4,y+4,x+5,y+7,9)
-
- -- tiny tail (optional read)
- pset(x-5,y+10,9)
- pset(x-6,y+11,9)
  
  -- fishing rod (diagonal, going up-right)
  rod_tip_x=x+16
  rod_tip_y=y-8
- line(x+5,y+2,rod_tip_x,rod_tip_y,4)
- line(x+5,y+3,rod_tip_x,rod_tip_y-1,4)
+ line(x+6,y+4,rod_tip_x,rod_tip_y,4)
+ line(x+6,y+5,rod_tip_x,rod_tip_y-1,4)
  -- aim arc / preview dotted trajectory + landing ring
  if state=="idle" or state=="aim" then
   local ang=lerp(0.95,0.85,p.aim) -- match cast angle
@@ -644,11 +703,51 @@ function draw_bobber()
   circfill(b.x,b.y+wig,3,7) -- base white
   circfill(b.x,b.y-1+wig,3,8) -- top red
   line(b.x,b.y-4+wig,b.x,b.y-6+wig,7) -- little stick
+  if state=="bite" then
+   shprint("!",b.x-1,b.y-15+sin(time()*8)*2,10)
+   line(b.x-5,b.y-8,b.x-8,b.y-11,7)
+   line(b.x+5,b.y-8,b.x+8,b.y-11,7)
+  end
  end
  -- line
  if state~="idle" and state~="title" then
   line(rod_tip_x,rod_tip_y,b.x,b.y,7)
  end
+end
+
+function draw_fish_shape(ff,col)
+ local d=ff.dir
+ local x=ff.x
+ local y=ff.y
+ local long=(ff.name=="pike" or ff.name=="walleye") and 2 or 0
+ local fat=(ff.name=="carp" or ff.name=="sunfish") and 1 or 0
+ local hw=4+long
+ local hh=3+fat
+ -- tail, white rim, then colored body
+ local tail=x-d*(hw-1)
+ for i=-3,3 do
+  line(tail,y,tail-d*(3-abs(i)/2),y+i,7)
+ end
+ ovalfill(x-hw-1,y-hh-1,x+hw+1,y+hh+1,7)
+ ovalfill(x-hw,y-hh,x+hw,y+hh,col)
+ -- fins and species markings
+ line(x,y+hh,x-d*2,y+hh+2,col)
+ if ff.name=="perch" then
+  for i=-2,2,2 do line(x+i,y-hh+1,x+i,y+hh-1,4) end
+ elseif ff.name=="bass" then
+  line(x-hw+1,y+1,x+hw-1,y+1,3)
+ elseif ff.name=="bluegill" then
+  circfill(x-d,y,2,12)
+ elseif ff.name=="sunfish" then
+  pset(x-2,y-1,10) pset(x+1,y+1,10)
+ elseif ff.name=="walleye" then
+  line(x-hw+1,y-1,x+hw-1,y-1,10)
+ elseif ff.name=="pike" then
+  pset(x-2,y-1,10) pset(x+1,y,10) pset(x+3,y-1,10)
+ end
+ -- face always points in travel direction
+ pset(x+d*(hw-1),y-1,0)
+ pset(x+d*hw,y+1,7)
 end
 
 function draw_fish()
@@ -659,14 +758,7 @@ function draw_fish()
   if f.rarity=="rare" then col=12 end
   if f.rarity=="legendary" then col=10+flr(time()*10)%2 end -- flash gold
 
-  -- outline for visibility
-  circfill(f.x,f.y,4,7)
-  circfill(f.x,f.y,3,col)
-  
-  -- tail
-  local off=f.dir*3
-  line(f.x-off,f.y,f.x-off*2,f.y-2,col)
-  line(f.x-off,f.y,f.x-off*2,f.y+2,col)
+  draw_fish_shape(f,col)
  end
  -- draw ambient bg fish on top of water
  draw_bgfish()
@@ -925,29 +1017,71 @@ function set_palette()
 end
 
 function draw_title()
+ pal()
  cls(1)
- -- water shimmer
- for i=0,127 do
-  local off=sin(time()+i*0.05)*2
-  pset(i,64+off,12)
+ -- compact dusk postcard
+ rectfill(0,32,127,58,13)
+ rectfill(0,59,127,74,2)
+ for i=0,11 do
+  pset((i*37+9)%128,34+(i*13)%22,(i%3==0) and 10 or 6)
  end
- 
- -- title
- local tx=64-24
- print("= cat fishing =",tx-2,30,7)
- print("cat fishing",tx,32,9)
- 
- -- bobber animation
- local by=50+sin(time()*2)*3
- circfill(64,by,4,7)
- circfill(64,by-2,4,8)
- 
- -- instructions
- print("</> or ^/v: aim cast",20,80,6)
- print("z: cast line",40,90,6)
- print("x: hook & reel",36,100,6)
- 
- print("press z or x to start",22,115,7)
+ circfill(103,43,8,7)
+ circfill(106,40,7,13)
+ -- distant shore and lake
+ for x=0,127,2 do
+  line(x,69-sin(x/31)*5,x,74,5)
+ end
+ rectfill(0,75,127,95,1)
+ for i=0,6 do
+  local wx=(i*23+flr(time()*5))%145-8
+  line(wx,79+(i%3)*6,wx+10,79+(i%3)*6,12)
+ end
+
+ -- little cat angler vignette
+ local cx=31
+ local cy=70
+ -- red shirt and blue overall silhouette
+ rectfill(cx-5,cy-2,cx+5,cy+5,8)
+ rectfill(cx-4,cy+2,cx+4,cy+8,1)
+ rectfill(cx-3,cy+2,cx+3,cy+6,5)
+ line(cx-3,cy-2,cx-2,cy+3,1)
+ line(cx+3,cy-2,cx+2,cy+3,1)
+ rectfill(cx-4,cy+7,cx-1,cy+10,1)
+ rectfill(cx+1,cy+7,cx+4,cy+10,1)
+ -- square orange cat face and tall ears
+ rectfill(cx-6,cy-13,cx+6,cy-3,9)
+ line(cx-5,cy-11,cx-5,cy-17,9)
+ line(cx-5,cy-17,cx-1,cy-13,9)
+ line(cx+5,cy-11,cx+5,cy-17,9)
+ line(cx+5,cy-17,cx+1,cy-13,9)
+ pset(cx-4,cy-15,8) pset(cx+4,cy-15,8)
+ -- navy headphones match the gameplay sprite
+ rectfill(cx-3,cy-15,cx+3,cy-14,1)
+ rectfill(cx-8,cy-10,cx-6,cy-4,1)
+ rectfill(cx+6,cy-10,cx+8,cy-4,1)
+ pset(cx-2,cy-9,0) pset(cx+2,cy-9,0)
+ pset(cx,cy-6,0)
+ rectfill(cx-6,cy+1,cx-5,cy+5,9)
+ rectfill(cx+5,cy+1,cx+6,cy+5,9)
+ line(cx+6,cy+2,58,55,4)
+ line(58,55,83,79,6)
+ circfill(83,81+sin(time()*2),2,7)
+ pset(83,80+sin(time()*2),8)
+ line(cx-5,cy+5,cx-10,cy+9,9)
+ line(cx-10,cy+9,cx-13,cy+5,9)
+
+ -- framed title and compact controls
+ rectfill(12,8,115,28,0)
+ rect(12,8,115,28,6)
+ shprint("cat fishing",42,13,10)
+ print("a tiny lakeside tale",27,22,6)
+ rectfill(8,98,119,127,0)
+ line(8,98,119,98,5)
+ print("arrows aim   z cast",27,102,6)
+ print("x hooks + reels",32,110,6)
+ if flr(time()*2)%2==0 then
+  shprint("press z or x",39,120,7)
+ end
 end
 
 function _draw()

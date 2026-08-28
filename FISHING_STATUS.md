@@ -47,6 +47,13 @@ Syntax Check: ✅ PASSES - No undefined variables or functions
   - Fish AI with random movement and sudden "runs"
 
 🎨 Visual Effects:
+  - Illustrated dusk title screen with cat angler vignette
+  - Layered sky with moving sun/moon, clouds, and night stars
+  - Detailed mountain, pine, reed, dock, and shoreline scenery
+  - Water depth bands with directional shimmer highlights
+  - Species-specific hooked fish shapes and markings
+  - Improved ambient fish silhouettes and swimming motion
+  - High-contrast bite alert and icon-enhanced HUD
   - Animated water waves
   - Splash particles when bobber hits water
   - Expanding ripple rings
@@ -82,10 +89,10 @@ Manual Commands:
 ✅ NEXT STEPS (Optional):
 =========================
 
-1. Add custom sprites in __gfx__ section for better fish graphics
+1. Add catch-card portraits or a fish collection journal
 2. Create custom sound effects in __sfx__ section
-3. Add more fish types or fishing locations
+3. Add more fishing locations with distinct scenery palettes
 4. Implement equipment upgrades (better rods, lures)
-5. Add day/night cycle affecting fish behavior
+5. Make the day/night cycle affect fish behavior
 
 The game is now fully functional and ready to play! 🎣
