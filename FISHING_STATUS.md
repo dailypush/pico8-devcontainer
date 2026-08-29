@@ -47,6 +47,10 @@ Syntax Check: ✅ PASSES - No undefined variables or functions
   - Fish AI with random movement and sudden "runs"
 
 🎨 Visual Effects:
+  - Four 16x32 cat sprite poses based on the reference character
+  - Seven distinct 16x8 fish species sprites
+  - Sprite-based bobber with reusable dock, water, grass, and reed tiles
+  - State-driven idle, casting, waiting, and reeling character poses
   - Illustrated dusk title screen with cat angler vignette
   - Layered sky with moving sun/moon, clouds, and night stars
   - Detailed mountain, pine, reed, dock, and shoreline scenery
