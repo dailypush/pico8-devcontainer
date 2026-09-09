@@ -110,6 +110,100 @@ local function test_fishing()
   if i%60==0 then _draw() end
  end
  check(#bgfish<=6 and #parts<100 and #fire_parts<100,"ambient effects bounded")
+ -- Capture calls while still exercising the native audio engine.
+ local native_sfx=sfx
+ local native_music=music
+ local native_menu=menuitem
+ local cues={}
+ local songs={}
+ local menus={}
+ sfx=function(id,ch)
+  add(cues,{id=id,ch=ch})
+  native_sfx(id,ch)
+ end
+ music=function(id,fade,mask)
+  add(songs,{id=id,mask=mask})
+  native_music(id,fade,mask)
+ end
+ menuitem=function(id,label,callback)
+  menus[id]=callback
+  native_menu(id,label,callback)
+ end
+ init_audio()
+ state="idle"
+ process_ambient()
+ check(songs[#songs].id==0 and songs[#songs].mask==3,"music reserves only channels 0/1")
+ play_subtle_sfx("splash")
+ check(cues[#cues].id==7 and cues[#cues].ch==2,"water uses ambient channel")
+ local count=#cues
+ for i=1,20 do play_subtle_sfx("splash") end
+ check(#cues==count,"splash storm throttled")
+ play_subtle_sfx("bite")
+ check(cues[#cues].id==1 and cues[#cues].ch==3,"bite uses dedicated cue channel")
+ check(not music_playing and songs[#songs].id==-1,"bite fades music")
+ count=#cues
+ play_subtle_sfx("reel")
+ play_subtle_sfx("bird")
+ play_subtle_sfx("bubble")
+ check(#cues==count,"bite protected from reel and ambience")
+ play_subtle_sfx("hook")
+ check(cues[#cues].id==6,"hook immediately follows bite")
+ state="hooked"
+ for i=1,100 do process_ambient() end
+ check(not music_playing,"music stays quiet through fight")
+ play_subtle_sfx("creak")
+ check(cues[#cues].id==9,"tension warning plays")
+ count=#cues
+ play_subtle_sfx("reel")
+ check(#cues==count,"reel cannot cut tension warning")
+ play_subtle_sfx("rare_win")
+ check(cues[#cues].id==15,"special catch flourish")
+ state="idle"
+ for i=1,149 do process_ambient() end
+ check(not music_playing,"catch phrase finishes before music")
+ process_ambient()
+ check(music_playing,"music returns after catch")
+ menus[1]()
+ check(not music_enabled and not music_playing,"music toggle stops playback")
+ for i=1,180 do process_ambient() end
+ check(not music_playing,"muted music stays off")
+ menus[2]()
+ check(not sounds_enabled and cues[#cues].id==-1 and cues[#cues].ch==3,"sound toggle stops effects")
+ count=#cues
+ play_subtle_sfx("bite")
+ play_subtle_sfx("water")
+ check(#cues==count,"muted effects stay silent")
+ menus[1]()
+ process_ambient()
+ check(music_playing and not sounds_enabled,"music works independently of effects")
+ state="bite"
+ process_ambient()
+ check(not music_playing,"fight fades music even with effects muted")
+ state="idle"
+ menus[2]()
+ process_ambient()
+ srand(987)
+ local expected=rnd(1)
+ srand(987)
+ play_subtle_sfx("cast")
+ check(rnd(1)==expected,"sound playback preserves gameplay rng")
+ for i=1,100 do process_ambient() end
+ init_audio()
+ tod=0.3
+ amb_step=1
+ amb_timer=1
+ process_ambient()
+ check(cues[#cues].id==10,"daytime bird ambience")
+ for i=1,200 do process_ambient() end
+ init_audio()
+ tod=0.8
+ amb_step=1
+ amb_timer=1
+ process_ambient()
+ check(cues[#cues].id==11,"nighttime cricket ambience")
+ sfx=native_sfx
+ music=native_music
+ menuitem=native_menu
  printh("PASS: "..checks.." fishing checks")
 end
 test_fishing()

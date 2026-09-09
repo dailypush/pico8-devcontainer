@@ -109,9 +109,14 @@ Run `./test_fishing.sh` to execute scripted gameplay and rendering checks in
 PICO-8, then build fresh `exports/simple_fishing.p8.png` and
 `exports/simple_fishing.html` / `.js` files. The checks cover aiming and landing,
 bite timing, catches and rarity points, line tension, effect cleanup, and drawing
-without changing gameplay randomness. Failures, timeouts, and missing export
+without changing gameplay randomness. Audio checks cover cue priorities, splash
+cooldowns, music recovery, day/night ambience, and independent mute toggles.
+Failures, timeouts, and missing export
 files return a nonzero exit code.
 
 The runner uses `/opt/pico8/pico8` by default. Set `PICO8_BIN` to an executable
 launcher if your environment needs a different installation or architecture
 compatibility setup. Python 3, Bash, `timeout`, and `rg` are also required.
+
+The fishing cart pause menu includes separate **music** and **sounds** toggles.
+Music fades out during bites and fights, then returns after catch feedback.
