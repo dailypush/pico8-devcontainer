@@ -204,6 +204,40 @@ local function test_fishing()
  sfx=native_sfx
  music=native_music
  menuitem=native_menu
+ -- Big catches celebrate without delaying the next cast.
+ state="idle"
+ celebration_t=0
+ for weight in all({3.4,3.5,4.2}) do
+  hook_fish()
+  f.weight=weight
+  f.rarity="common"
+  f.stamina=0
+  f.x=p.x+12
+  f.y=water_y+6
+  tick(nil,5)
+  check(state=="idle","celebration preserves cast controls")
+  check((celebration_t>0)==(weight>=3.5),"big catch threshold")
+  if celebration_t>0 then
+   local remaining=celebration_t
+   _draw()
+   _draw()
+   check(celebration_t==remaining,"drawing does not advance dance")
+   tick()
+   check(celebration_t==remaining-1,"dance advances in update")
+  end
+  if weight==3.5 then
+   tick(4)
+   check(state=="casting" and celebration_t==0,"casting interrupts dance")
+   state="idle"
+  end
+ end
+ for i=1,celebration_frames do tick() end
+ check(celebration_t==0,"dance ends automatically")
+ local confetti=0
+ for part in all(parts) do
+  if part.k=="confetti" then confetti+=1 end
+ end
+ check(confetti==0,"celebration particles expire")
  printh("PASS: "..checks.." fishing checks")
 end
 test_fishing()

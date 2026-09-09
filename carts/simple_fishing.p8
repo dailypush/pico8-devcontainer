@@ -17,6 +17,8 @@ rarity_bonus={common=0,uncommon=10,rare=20,legendary=50}
 bite_min_wait=60     -- 1s at 60fps
 bite_max_wait=240    -- 4s
 line_max=100
+big_fish_weight=3.5
+celebration_frames=150
 
 -- game state
 state="title"
@@ -95,6 +97,7 @@ function draw_waves()
 end
 
 function _init()
+ celebration_t=0
  shake=0
  shake_x=0
  shake_y=0
@@ -176,6 +179,11 @@ function update_parts()
   elseif p.k=="ring" then
    p.r+=p.vr or 0.4
    if p.t<=0 then del(parts,p) end
+  elseif p.k=="confetti" then
+   p.x+=p.vx
+   p.y+=p.vy
+   p.vy+=0.04
+   if p.t<=0 then del(parts,p) end
   elseif p.k=="spark" then
    p.x+=p.vx
    p.y+=p.vy
@@ -195,7 +203,7 @@ function draw_parts()
    pset(p.x,p.y,p.c or 7)
   elseif p.k=="drop" then
    pset(p.x,p.y,p.c or 12)
-  elseif p.k=="spark" then
+  elseif p.k=="spark" or p.k=="confetti" then
    pset(p.x,p.y,p.c or 10)
   end
  end
@@ -222,6 +230,7 @@ function cast_step(x,y,vx,vy)
 end
 
 function cast()
+ celebration_t=0
  reset_bobber()
  p.cx,p.cy=cast_velocity()
  state="casting"
@@ -692,11 +701,33 @@ end
 rod_tip_x=0
 rod_tip_y=0
 
+function celebrate_catch()
+ celebration_t=celebration_frames
+ add_floating_text("big catch!",p.x-12,p.y-21,10)
+ -- A fixed burst keeps celebration visuals out of the gameplay RNG.
+ for i=1,20 do
+  local a=i/20
+  add(parts,{k="confetti",x=p.x,y=p.y-10,
+   vx=cos(a)*1.3,vy=-1.5+sin(a)*0.8,
+   t=45+i,c=({10,8,12,7})[i%4+1]})
+ end
+end
+
 function draw_player()
  -- four 16x32 poses drawn from the sprite sheet
  local x=p.x
  local y=p.y
  ovalfill(x-6,y+14,x+6,y+16,0)
+ if celebration_t>0 and (state=="idle" or state=="aim") then
+  local beat=(celebration_frames-celebration_t)/24
+  local sway=sin(beat)*2
+  local hop=abs(sin(beat))*4
+  -- Park the rod on the dock while the angler hops and switches poses.
+  line(x+11,y+15,rod_tip_x,rod_tip_y,4)
+  local pose=flr(beat)%2==0 and 2 or 6
+  spr(pose,x-8+sway,y-15-hop,2,4,flr(beat)%2==1)
+  return
+ end
  local frame=0
  if state=="casting" then frame=2 end
  if state=="waiting" or state=="bite" then frame=4 end
@@ -840,6 +871,7 @@ function process_ambient()
 end
 
 function _update60()
+ celebration_t=max(0,celebration_t-1)
  frame_t=(frame_t+1)%30000
  rod_tip_x=p.x+16
  rod_tip_y=p.y-8
@@ -983,6 +1015,7 @@ function _update60()
    local pts=flr(10+f.weight*5+rarity_bonus[f.rarity])
    score+=pts
    fish_caught+=1
+   if f.weight>=big_fish_weight then celebrate_catch() end
    add_floating_text(f.name.." "..fmt_w(f.weight).." +"..pts,4,99,7)
    if f.weight>best_w then best_w=f.weight best_name=f.name end
    f=nil
